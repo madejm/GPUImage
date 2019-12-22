@@ -8,24 +8,7 @@
 #pragma mark -
 #pragma mark Private methods and instance variables
 
-void AccessOnMainThread(void(^block)(void))
-{
-    if (NSThread.currentThread.isMainThread)
-    {
-        block();
-    }
-    else
-    {
-        dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            block();
-            dispatch_semaphore_signal(semaphore);
-        });
-        dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
-    }
-};
-
-@interface GPUImageView ()
+@interface GPUImageView () 
 {
     GPUImageFramebuffer *inputFramebufferForDisplay;
     GLuint displayRenderbuffer, displayFramebuffer;
@@ -153,7 +136,7 @@ void AccessOnMainThread(void(^block)(void))
     // The frame buffer needs to be trashed and re-created when the view size changes.
     if (!CGSizeEqualToSize(self.bounds.size, boundsSizeAtFrameBufferEpoch) &&
         !CGSizeEqualToSize(self.bounds.size, CGSizeZero)) {
-        runAsynchronouslyOnVideoProcessingQueue(^{
+        runSynchronouslyOnVideoProcessingQueue(^{
             [self destroyDisplayFramebuffer];
             [self createDisplayFramebuffer];
         });
@@ -181,11 +164,9 @@ void AccessOnMainThread(void(^block)(void))
 	
     glGenRenderbuffers(1, &displayRenderbuffer);
     glBindRenderbuffer(GL_RENDERBUFFER, displayRenderbuffer);
-    
-    AccessOnMainThread(^{
-        [[[GPUImageContext sharedImageProcessingContext] context] renderbufferStorage:GL_RENDERBUFFER fromDrawable:(CAEAGLLayer*)self.layer];
-    });
-    
+	
+    [[[GPUImageContext sharedImageProcessingContext] context] renderbufferStorage:GL_RENDERBUFFER fromDrawable:(CAEAGLLayer*)self.layer];
+	
     GLint backingWidth, backingHeight;
 
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &backingWidth);
@@ -206,9 +187,7 @@ void AccessOnMainThread(void(^block)(void))
 	
     __unused GLuint framebufferCreationStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     NSAssert(framebufferCreationStatus == GL_FRAMEBUFFER_COMPLETE, @"Failure with display framebuffer generation for display of size: %f, %f", self.bounds.size.width, self.bounds.size.height);
-    AccessOnMainThread(^{
-        boundsSizeAtFrameBufferEpoch = self.bounds.size;
-    });
+    boundsSizeAtFrameBufferEpoch = self.bounds.size;
 
     [self recalculateViewGeometry];
 }
@@ -256,17 +235,12 @@ void AccessOnMainThread(void(^block)(void))
     runSynchronouslyOnVideoProcessingQueue(^{
         CGFloat heightScaling, widthScaling;
         
-        __block CGRect bounds;
-        AccessOnMainThread(^{
-            bounds = self.bounds;
-        });
-        
-        CGSize currentViewSize = bounds.size;
+        CGSize currentViewSize = self.bounds.size;
         
         //    CGFloat imageAspectRatio = inputImageSize.width / inputImageSize.height;
         //    CGFloat viewAspectRatio = currentViewSize.width / currentViewSize.height;
         
-        CGRect insetRect = AVMakeRectWithAspectRatioInsideRect(inputImageSize, bounds);
+        CGRect insetRect = AVMakeRectWithAspectRatioInsideRect(inputImageSize, self.bounds);
         
         switch(_fillMode)
         {
